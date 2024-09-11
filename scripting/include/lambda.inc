@@ -8,7 +8,7 @@
 	#pragma loadlib Lambda_AMXX_API_Core
 #endif
 
-#include <grip>
+#include <easy_http>
 #include <lambda_consts>
 #include <lambda_version>
 
@@ -51,7 +51,7 @@ forward Lambda_PlayerLoading(const index);
  *
  * @noreturn
  */
-forward Lambda_PlayerLoaded(const index, GripJSONValue:data);
+forward Lambda_PlayerLoaded(const index, EzJSON:data);
 
 /**
  * Called when a player is disconnecting.
@@ -67,7 +67,7 @@ forward Lambda_PlayerDisconnecting(const index);
 /**
  * Makes request to API.
  *
- * @note				There is no need to use the native grip_destroy_json_value() to clean up after creating the request.
+ * @note				There is no need to use the native ezjson_free() to clean up after creating the request.
  *
  * @param endpoint		Part of path to api resource
  * @param data			Data provided to API
@@ -78,7 +78,7 @@ forward Lambda_PlayerDisconnecting(const index);
  * @error				If an invalid number of arguments is set, or API is not enabled, or an
  *						invalid callback function is provided, an error will be thrown.
  */
-native Lambda_MakeRequest(const endpoint[], GripJSONValue:data, const callback[] = "", const param = 0);
+native Lambda_MakeRequest(const endpoint[], EzJSON:data, const callback[] = "", const param = 0);
 
 /**
  * Gets server index.
@@ -112,15 +112,15 @@ native Lambda_GetServerTimeDiff();
  *
  * @param name			JSON name
  *
- * @return				JSON handle on success, Invalid_GripJSONValue otherwise.
+ * @return				JSON handle on success, EzInvalid_JSON otherwise.
  * @error				If an invalid number of arguments is set, an error will be thrown.
  */
-native GripJSONValue:Lambda_LoadCache(const name[]);
+native EzJSON:Lambda_LoadCache(const name[]);
 
 /**
  * Saves cache by name.
  *
- * @note				Needs to be destroyed GripJSONValue:data using grip_destroy_json_value() native.
+ * @note				Needs to be freed EzJSON:data using ezjson_free() native.
  *
  * @param name			JSON name
  * @param data			JSON handle
@@ -128,7 +128,7 @@ native GripJSONValue:Lambda_LoadCache(const name[]);
  * @return				true on success, false otherwise.
  * @error				If an invalid number of arguments is set, an error will be thrown.
  */
-native bool:Lambda_SaveCache(const name[], const GripJSONValue:data);
+native bool:Lambda_SaveCache(const name[], const EzJSON:data);
 
 /**
  * Deletes saved cache by name.

@@ -34,7 +34,7 @@ public NativeMakeRequest(const plugin, const argc) {
 	new callback[64];
 	get_string(arg_callback, callback, charsmax(callback));
 
-	new funcId, GripJSONValue:data = GripJSONValue:get_param(arg_data);
+	new funcId, EzJSON:data = EzJSON:get_param(arg_data);
 	if (callback[0] != EOS) {
 		funcId = get_func_id(callback, plugin);
 		if (funcId == INVALID_HANDLE) {
@@ -60,10 +60,10 @@ public NativeGetServerTimeDiff() {
 	return ServerData[ServerTimeDiff];
 }
 
-public GripJSONValue:NativeLoadCache(const plugin, const argc) {
+public EzJSON:NativeLoadCache(const plugin, const argc) {
 	enum { arg_name = 1 };
 
-	CHECK_NATIVE_ARGS_NUM(argc, arg_name, Invalid_GripJSONValue)
+	CHECK_NATIVE_ARGS_NUM(argc, arg_name, EzInvalid_JSON)
 
 	new name[64];
 	get_string(arg_name, name, charsmax(name));
@@ -79,7 +79,7 @@ public bool:NativeSaveCache(const plugin, const argc) {
 	new name[64];
 	get_string(arg_name, name, charsmax(name));
 
-	if (saveCache(name, GripJSONValue:get_param(arg_data))) {
+	if (saveCache(name, EzJSON:get_param(arg_data))) {
 		return true;
 	}
 

@@ -23,13 +23,13 @@ public Lambda_ConfigExecuted() {
 public Lambda_CoreLoaded() {
 	/*		  EXAMPLE		*/
 	new AccessToken[65], TimeToString[32];
-	new GripJSONValue:data = Lambda_LoadCache("access-token");
+	new EzJSON:data = Lambda_LoadCache("access-token");
 
 	// server_print("[Lambda] API Test LambdaFolder = %s", LambdaFolder);
 
-	if (data != Invalid_GripJSONValue) {
-		grip_json_object_get_string(data, "token", AccessToken, charsmax(AccessToken));
-		format_time(TimeToString, charsmax(TimeToString), "%m/%d/%Y - %I:%M:%S %p", grip_json_get_number(grip_json_object_get_value(data, "expires_in")));
+	if (data != EzInvalid_JSON) {
+		ezjson_object_get_string(data, "token", AccessToken, charsmax(AccessToken));
+		format_time(TimeToString, charsmax(TimeToString), "%m/%d/%Y - %I:%M:%S %p", ezjson_get_number(ezjson_object_get_value(data, "expires_in")));
 		server_print("Forward | Lambda_CoreLoaded() | Access token = %s | Expires in = %s", AccessToken, TimeToString);
 	}
 	/*		EXAMPLE END		*/

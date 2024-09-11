@@ -21,7 +21,7 @@ const Float:PingDelay = 60.0;
 
 enum any:RequestStruct {
 	RequestEndPoint[256],
-	GripJSONValue:RequestData,
+	EzJSON:RequestData,
 	RequestPluginId,
 	RequestFuncId,
 	RequestParam,
@@ -43,7 +43,7 @@ enum FUNC {
 new Functions[FUNC];
 
 new LastNotProcessedRequest;
-new GripRequestOptions:RequestOptions = Empty_GripRequestOptions;
+new EzJSON:RequestOptions = EzInvalid_JSON;
 new Array:RequestStorage = Invalid_Array;
 new RequestUrl[256];
 
@@ -118,25 +118,25 @@ public plugin_end() {
 	// for (new i, items = ArraySize(RequestStorage), request[RequestStruct]; i < items; i++) {
 	// 	ArrayGetArray(RequestStorage, i, request, sizeof request);
 	// 	log_amx("plugin_end | data = %d", request[RequestData]);
-	// 	grip_destroy_json_value(request[RequestData]);
+	// 	ezjson_free(request[RequestData]);
 	// }
 
-	// if (RequestOptions != Empty_GripRequestOptions) {
-	// 	grip_destroy_options(RequestOptions);
+	// if (RequestOptions != EzInvalid_JSON) {
+	// 	ezjson_free(RequestOptions);
 	// }
 }
 
-public OnAuthorization(const LambdaResponseStatus:status, GripJSONValue:data) {
+public OnAuthorization(const LambdaResponseStatus:status, EzJSON:data) {
 	CHECK_RESPONSE_STATUS(status)
 
-	if (!data || grip_json_get_type(data) != GripJSONObject) {
+	if (!data || ezjson_get_type(data) != EzJSONObject) {
 		return;
 	}
 
-	new GripJSONValue:tmp = grip_json_object_get_value(data, "access_token");
+	new EzJSON:tmp = ezjson_object_get_value(data, "access_token");
 	parseAccessToken(tmp);
 	saveCache("access-token", tmp);
-	grip_destroy_json_value(tmp);
+	ezjson_free(tmp);
 
 	log_amx("Server has successfully authorized.");
 
@@ -154,29 +154,29 @@ public OnAuthorization(const LambdaResponseStatus:status, GripJSONValue:data) {
 	}
 }
 
-public OnInfoResponse(const LambdaResponseStatus:status, GripJSONValue:data) {
+public OnInfoResponse(const LambdaResponseStatus:status, EzJSON:data) {
 	CHECK_RESPONSE_STATUS(status)
 
-	if (!data || grip_json_get_type(data) != GripJSONObject) {
+	if (!data || ezjson_get_type(data) != EzJSONObject) {
 		return;
 	}
 
-	// ServerData[ServerID] = grip_json_object_get_number(data, "server_id");
-	ServerData[ServerTime] = grip_json_object_get_number(data, "time");
+	// ServerData[ServerID] = ezjson_object_get_number(data, "server_id");
+	ServerData[ServerTime] = ezjson_object_get_number(data, "time");
 	ServerData[ServerTimeDiff] = get_systime(0) - ServerData[ServerTime];
 
 	if (UpdateReasons) {
-		new GripJSONValue:tmp = grip_json_object_get_value(data, "reasons_data");
+		new EzJSON:tmp = ezjson_object_get_value(data, "reasons_data");
 		parseReasons(tmp);
 		saveCache("reasons", tmp);
-		grip_destroy_json_value(tmp);
+		zjson_free(tmp);
 	}
 
 	if (UpdateAccessGroups) {
-		new GripJSONValue:tmp = grip_json_object_get_value(data, "access_groups_data");
+		new EzJSON:tmp = ezjson_object_get_value(data, "access_groups_data");
 		parseAccessGroups(tmp);
 		saveCache("access_groups", tmp);
-		grip_destroy_json_value(tmp);
+		zjson_free(tmp);
 	}
 
 	ExecuteForward(Forwards[FwdCoreLoaded]);
@@ -185,7 +185,7 @@ public OnInfoResponse(const LambdaResponseStatus:status, GripJSONValue:data) {
 	set_task(PingDelay, "TaskPing", .id = TaskPingIndex, .flags = "b");
 }
 
-public OnPing(const LambdaResponseStatus:status, GripJSONValue:data) {
+public OnPing(const LambdaResponseStatus:status, EzJSON:data) {
 	CHECK_RESPONSE_STATUS(status)
 	// if (status != LambdaResponseStatusOk) {
 	// 	log_amx("Bad response (status code #%d)", status);
@@ -193,7 +193,7 @@ public OnPing(const LambdaResponseStatus:status, GripJSONValue:data) {
 	// 	return;
 	// }
 
-	if (!data || grip_json_get_type(data) != GripJSONObject) {
+	if (!data || ezjson_get_type(data) != EzJSONObject) {
 		return;
 	}
 
@@ -206,38 +206,38 @@ public TaskPing() {
 }
 
 makeAuthorizationRequest() {
-	new GripJSONValue:data = grip_json_init_object();
-	grip_json_object_set_number(data, "port", ServerData[ServerPort]);
-	grip_json_object_set_string(data, "auth_token", ServerData[ServerAuthToken]);
+	new EzJSON:data = ezjson_init_object();
+	ezjson_object_set_string(data, "port", ServerData[ServerPort]);
+	ezjson_object_set_string(data, "auth_token", ServerData[ServerAuthToken]);
 	makeRequest(API_GAME_SERVER_ROUTE_AUTH, data, PluginId, Functions[FuncOnAuthorization]);
 }
 
 makeInfoRequest() {
-	new GripJSONValue:data = grip_json_init_object();
-	grip_json_object_set_string(data, "map", MapName);
-	grip_json_object_set_number(data, "max_players", MaxClients);
-	UpdateReasons && grip_json_object_set_bool(data, "update_reasons", true);
-	UpdateAccessGroups && grip_json_object_set_bool(data, "update_access_groups", true);
+	new EzJSON:data = ezjson_init_object();
+	ezjson_object_set_string(data, "map", MapName);
+	ezjson_object_set_number(data, "max_players", MaxClients);
+	UpdateReasons && ezjson_object_set_bool(data, "update_reasons", true);
+	UpdateAccessGroups && ezjson_object_set_bool(data, "update_access_groups", true);
 	makeRequest(API_GAME_SERVER_ROUTE_INFO, data, PluginId, Functions[FuncOnInfoResponse]);
 }
 
 makePingRequest() {
-	new GripJSONValue:data = grip_json_init_object();
-	// grip_json_object_set_number(data, "num_players", get_playersnum());
+	new EzJSON:data = ezjson_init_object();
+	// ezjson_object_set_number(data, "num_players", get_playersnum());
 	// https://github.com/gm-x/gmx-amxx/blob/1bd75e46b20f5ec98e2afd676d321bf63aefa62b/scripting/gmx.sma#L236-L242
 	makeRequest(API_GAME_SERVER_ROUTE_PING, data, PluginId, Functions[FuncOnPing]);
 	// https://github.com/gm-x/gmx-amxx/blob/1bd75e46b20f5ec98e2afd676d321bf63aefa62b/scripting/gmx.sma#L245
 }
 
-makeRequest(const endpoint[], GripJSONValue:data = Invalid_GripJSONValue, const pluginID = INVALID_PLUGIN_ID, const funcID = INVALID_PLUGIN_ID, const param = 0) {
-	if (RequestOptions == Empty_GripRequestOptions) {
-		RequestOptions = grip_create_default_options();
-		grip_options_add_header(RequestOptions, "Content-Type", "application/json");
-		grip_options_add_header(RequestOptions, "User-Agent", "Lambda");
+makeRequest(const endpoint[], EzJSON:data = EzInvalid_JSON, const pluginID = INVALID_PLUGIN_ID, const funcID = INVALID_PLUGIN_ID, const param = 0) {
+	if (RequestOptions == EzInvalid_JSON) {
+		RequestOptions = ezhttp_create_options();
+		ezhttp_option_set_header(RequestOptions, "Content-Type", "application/json");
+		ezhttp_option_set_user_agent(RequestOptions, "Lambda");
 	}
 
 	if (funcID != Functions[FuncOnAuthorization]) {
-		grip_options_add_header(RequestOptions, "X-Access-Token", ServerData[ServerAccessToken]);
+		ezhttp_option_set_header(RequestOptions, "X-Access-Token", ServerData[ServerAccessToken]);
 	}
 
 	new request[RequestStruct];
@@ -252,18 +252,16 @@ makeRequest(const endpoint[], GripJSONValue:data = Invalid_GripJSONValue, const 
 	}
 
 	new id = ArrayPushArray(RequestStorage, request, sizeof request);
-	new GripBody:body = data != Invalid_GripJSONValue ? grip_body_from_json(data) : Empty_GripBody;
 
-	grip_request(fmt("%s/api/%s", RequestUrl, endpoint), body, GripRequestTypePost, "RequestHandler", RequestOptions, id);
+	ezhttp_option_set_body_from_json(RequestOptions, data);
+	ezjson_free(RequestOptions);
 
-	if (body != Empty_GripBody) {
-		grip_destroy_body(body);
-	}
+	ezhttp_post(fmt("%s/api/%s", RequestUrl, endpoint), "RequestHandler", RequestOptions);
 
 	return id;
 }
 
-public RequestHandler(const id) {
+public RequestHandler(EzHttpRequest:id) {
 	if (!isRequestIndexValid(id)) {
 		log_amx("Bad request (id #%d).", id);
 		return;
@@ -272,77 +270,65 @@ public RequestHandler(const id) {
 	new request[RequestStruct], error[256];
 	ArrayGetArray(RequestStorage, id, request, sizeof request);
 
-	if (grip_get_response_state() != GripResponseStateSuccessful) {
-		switch (grip_get_response_state()) {
-			case GripResponseStateCancelled: {
-				log_amx("Request (id #%d) was canceled.", id);
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusCanceled, Invalid_GripJSONValue, request[RequestParam]);
-			}
-			case GripResponseStateError: {
-				grip_get_error_description(error, charsmax(error));
-				log_amx("Request (id #%d) finished with error: '%s'.", id, error);
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusError, Invalid_GripJSONValue, request[RequestParam]);
-			}
-			case GripResponseStateTimeout: {
-				log_amx("Request (id #%d) finished with timeout.", id);
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusTimeout, Invalid_GripJSONValue, request[RequestParam]);
-			}
-		}
-
-		return;
-	}
-
-	new GripHTTPStatus:code = GripHTTPStatus:grip_get_response_status_code();
-	if (code != GripHTTPStatusOk) {
+	new EzHttpErrorCode:code = ezhttp_get_error_code(id);
+	if (code != EZH_OK) {
 		request[RequestNotProcessed] = true;
 		LastNotProcessedRequest = id;
 
 		log_amx("Request (id #%d) finished with '%d' status.", id, code);
-
+/*
 		switch (code) {
-			case GripHTTPStatusUnauthorized, GripHTTPStatusForbidden: {
-			// case GripHTTPStatusUnauthorized: {
-				grip_destroy_options(RequestOptions);
-				RequestOptions = Empty_GripRequestOptions;
+			case EZH_CONNECTION_FAILURE: {
+				log_amx("Request (id #%d) was canceled.", id);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusCanceled, EzInvalid_JSON, request[RequestParam]);
+			}
+			case EZH_REQUEST_CANCELLED: {
+				log_amx("Request (id #%d) was canceled.", id);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusCanceled, EzInvalid_JSON, request[RequestParam]);
+			}
+			case EZH_OPERATION_TIMEDOUT: {
+				log_amx("Request (id #%d) finished with timeout.", id);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusTimeout, EzInvalid_JSON, request[RequestParam]);
+			}
+			case EZH_NETWORK_SEND_FAILURE: {
+				ezjson_free(RequestOptions);
+				RequestOptions = EzInvalid_JSON;
 
 				log_amx("Сервер неавторизован, возможно истек срок действия токена доступа! будет произведена попытка авторизации!");
 				makeAuthorizationRequest();
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusUnauthorized, Invalid_GripJSONValue, request[RequestParam]);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusUnauthorized, EzInvalid_JSON, request[RequestParam]);
 			}
-			// перенести сюда логику для запросов которые не смогли успешно завершиться
-/*			case GripHTTPStatusForbidden: {
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusBadToken, Invalid_GripJSONValue, request[RequestParam]);
-			}*/
-			case GripHTTPStatusNotFound: {
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusNotFound, Invalid_GripJSONValue, request[RequestParam]);
-			}
-			case GripHTTPStatusInternalServerError: {
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusServerError, Invalid_GripJSONValue, request[RequestParam]);
+			case EZH_INTERNAL_ERROR: {
+				ezhttp_get_error_message(id, error, charsmax(error));
+				log_amx("Request (id #%d) finished with error: '%s'.", id, error);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusError, EzInvalid_JSON, request[RequestParam]);
+				//callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusServerError, EzInvalid_JSON, request[RequestParam]);
 			}
 			default: {
-				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusUnknownError, Invalid_GripJSONValue, request[RequestParam]);
+				callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusUnknownError, EzInvalid_JSON, request[RequestParam]);
 			}
 		}
-
+*/
 		ArraySetArray(RequestStorage, id, request, sizeof request);
 		return;
 	}
 
-	new GripJSONValue:data = grip_json_parse_response_body(error, charsmax(error));
-	if (data == Invalid_GripJSONValue) {
+	new EzJSON:data = ezhttp_parse_json_response(id);
+	if (data == EzInvalid_JSON) {
+		ezhttp_get_error_message(id, error, charsmax(error));
 		log_amx("Error parse response: '%s'.", error);
-		callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusBadResponse, Invalid_GripJSONValue, request[RequestParam]);
+		callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusBadResponse, EzInvalid_JSON, request[RequestParam]);
 		return;
 	}
 
 	request[RequestNotProcessed] = false;
 
 	callHandlerFunc(request[RequestPluginId], request[RequestFuncId], LambdaResponseStatusOk, data, request[RequestParam]);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 	ArraySetArray(RequestStorage, id, request, sizeof request);
 }
 
-callHandlerFunc(const pluginID, const funcID, const LambdaResponseStatus:status, const GripJSONValue:data, const param) {
+callHandlerFunc(const pluginID, const funcID, const LambdaResponseStatus:status, const EzJSON:data, const param) {
 	if (pluginID != INVALID_PLUGIN_ID && funcID != INVALID_PLUGIN_ID && callfunc_begin_i(funcID, pluginID) == 1) {
 		callfunc_push_int(_:status);
 		callfunc_push_int(_:data);
@@ -374,26 +360,27 @@ bool:loadConfig() {
 	}
 
 	new error[128];
-	new GripJSONValue:cfg = grip_json_parse_file(filePath, error, charsmax(error));
+	new EzJSON:cfg = ezjson_parse(filePath, true);
 
-	if (cfg == Invalid_GripJSONValue) {
+	if (cfg == EzInvalid_JSON) {
+		ezhttp_get_error_message(cfg, error, charsmax(error));
 		set_fail_state("Could not open '%s'. Error '%s'.", filePath, error);
 		return false;
 	}
 
-	if (grip_json_get_type(cfg) != GripJSONObject) {
-		grip_destroy_json_value(cfg);
+	if (ezjson_get_type(cfg) != EzJSONObject) {
+		ezjson_free(cfg);
 		set_fail_state("Could not open '%s'. Bad format.", filePath);
 		return false;
 	}
 
-	grip_json_object_get_string(cfg, "request-url", RequestUrl, charsmax(RequestUrl));
-	grip_json_object_get_string(cfg, "server-ip", ServerData[ServerIP], charsmax(ServerData[ServerIP]));
-	grip_json_object_get_string(cfg, "server-auth-token", ServerData[ServerAuthToken], charsmax(ServerData[ServerAuthToken]));
-	ServerData[ServerPort] = grip_json_object_get_number(cfg, "server-port");
+	ezjson_object_get_string(cfg, "request-url", RequestUrl, charsmax(RequestUrl));
+	ezjson_object_get_string(cfg, "server-ip", ServerData[ServerIP], charsmax(ServerData[ServerIP]));
+	ezjson_object_get_string(cfg, "server-auth-token", ServerData[ServerAuthToken], charsmax(ServerData[ServerAuthToken]));
+	ServerData[ServerPort] = ezjson_object_get_number(cfg, "server-port");
 
 	log_amx("Loading configuration. Request URL is '%s'", RequestUrl);
-	grip_destroy_json_value(cfg);
+	ezjson_free(cfg);
 
 	ExecuteForward(Forwards[FwdConfigExecuted]);
 	return true;
@@ -403,10 +390,10 @@ bool:isRequestIndexValid(const index) {
 	return bool:(0 <= index && index < ArraySize(RequestStorage));
 }
 
-parseAccessToken(const GripJSONValue:data) {
-	grip_json_object_get_string(data, "token", ServerData[ServerAccessToken], charsmax(ServerData[ServerAccessToken]));
-	ServerData[ServerAccessTokenExpiresIn] = grip_json_object_get_number(data, "expires_in");
-	ServerData[ServerID] = grip_json_object_get_number(data, "server_id");
+parseAccessToken(const EzJSON:data) {
+	ezjson_object_get_string(data, "token", ServerData[ServerAccessToken], charsmax(ServerData[ServerAccessToken]));
+	ServerData[ServerAccessTokenExpiresIn] = ezjson_object_get_number(data, "expires_in");
+	ServerData[ServerID] = ezjson_object_get_number(data, "server_id");
 }
 
 bool:isAccessTokenValid() {
@@ -418,13 +405,13 @@ bool:isAccessTokenValid() {
 }
 
 bool:getAccessToken() {
-	new GripJSONValue:data = loadCache("access-token");
-	if (data == Invalid_GripJSONValue) {
+	new EzJSON:data = loadCache("access-token");
+	if (data == EzInvalid_JSON) {
 		return false;
 	}
 
 	parseAccessToken(data);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 
 	if (!isAccessTokenValid()) {
 		return false;
@@ -433,26 +420,26 @@ bool:getAccessToken() {
 	return true;
 }
 
-parseReasons(const GripJSONValue:data) {
+parseReasons(const EzJSON:data) {
 	if (ReasonsData == Invalid_Array) {
 		ReasonsData = ArrayCreate(ReasonStruct);
 	}
 
-	new GripJSONValue:tmp = grip_json_object_get_value(data, "reasons");
-	for (new i, n = grip_json_array_get_count(tmp), GripJSONValue:element, reason[ReasonStruct]; i < n; i++) {
-		element = grip_json_array_get_value(tmp, i);
-		if (grip_json_get_type(element) == GripJSONObject) {
-			reason[ReasonID] = grip_json_object_get_number(element, "id");
-			grip_json_object_get_string(element, "title", reason[ReasonTitle], charsmax(reason[ReasonTitle]));
-			reason[ReasonTime] = grip_json_object_get_number(element, "time");
+	new EzJSON:tmp = ezjson_object_get_value(data, "reasons");
+	for (new i, n = ezjson_array_get_count(tmp), EzJSON:element, reason[ReasonStruct]; i < n; i++) {
+		element = ezjson_array_get_value(tmp, i);
+		if (ezjson_is_object(element)) {
+			reason[ReasonID] = ezjson_object_get_number(element, "id");
+			ezjson_object_get_string(element, "title", reason[ReasonTitle], charsmax(reason[ReasonTitle]));
+			reason[ReasonTime] = ezjson_object_get_number(element, "time");
 
 			ArrayPushArray(ReasonsData, reason, sizeof reason);
 		}
-		grip_destroy_json_value(element);
+		ezjson_free(element);
 	}
 
-	ReasonsNextUpdate = grip_json_object_get_number(data, "next_update");
-	grip_destroy_json_value(tmp);
+	ReasonsNextUpdate = ezjson_object_get_number(data, "next_update");
+	ezjson_free(tmp);
 }
 
 bool:isReasonsValid() {
@@ -464,13 +451,13 @@ bool:isReasonsValid() {
 }
 
 bool:getReasons() {
-	new GripJSONValue:data = loadCache("reasons");
-	if (data == Invalid_GripJSONValue) {
+	new EzJSON:data = loadCache("reasons");
+	if (data == EzInvalid_JSON) {
 		return false;
 	}
 
 	parseReasons(data);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 
 	if (!isReasonsValid()) {
 		return false;
@@ -479,27 +466,27 @@ bool:getReasons() {
 	return true;
 }
 
-parseAccessGroups(const GripJSONValue:data) {
+parseAccessGroups(const EzJSON:data) {
 	if (AccessGroupsData == Invalid_Array) {
 		AccessGroupsData = ArrayCreate(AccessGroupStruct);
 	}
 
-	new GripJSONValue:tmp = grip_json_object_get_value(data, "access_groups");
-	for (new i, n = grip_json_array_get_count(tmp), GripJSONValue:element, accessGroup[AccessGroupStruct]; i < n; i++) {
-		element = grip_json_array_get_value(tmp, i);
-		if (grip_json_get_type(element) == GripJSONObject) {
-			accessGroup[AccessGroupID] = grip_json_object_get_number(element, "id");
-			grip_json_object_get_string(element, "title", accessGroup[AccessGroupTitle], charsmax(accessGroup[AccessGroupTitle]));
-			grip_json_object_get_string(element, "flags", accessGroup[AccessGroupFlags], charsmax(accessGroup[AccessGroupFlags]));
-			grip_json_object_get_string(element, "prefix", accessGroup[AccessGroupPrefix], charsmax(accessGroup[AccessGroupPrefix]));
+	new EzJSON:tmp = ezjson_object_get_value(data, "access_groups");
+	for (new i, n = gezjson_array_get_count(tmp), EzJSON:element, accessGroup[AccessGroupStruct]; i < n; i++) {
+		element = ezjson_array_get_value(tmp, i);
+		if (ezjson_is_object(element)) {
+			accessGroup[AccessGroupID] = ezjson_object_get_number(element, "id");
+			ezjson_object_get_string(element, "title", accessGroup[AccessGroupTitle], charsmax(accessGroup[AccessGroupTitle]));
+			ezjson_object_get_string(element, "flags", accessGroup[AccessGroupFlags], charsmax(accessGroup[AccessGroupFlags]));
+			ezjson_object_get_string(element, "prefix", accessGroup[AccessGroupPrefix], charsmax(accessGroup[AccessGroupPrefix]));
 
 			ArrayPushArray(AccessGroupsData, accessGroup, sizeof accessGroup);
 		}
-		grip_destroy_json_value(element);
+		ezjson_free(element);
 	}
 
-	AccessGroupsNextUpdate = grip_json_object_get_number(data, "next_update");
-	grip_destroy_json_value(tmp);
+	AccessGroupsNextUpdate = ezjson_object_get_number(data, "next_update");
+	ezjson_free(tmp);
 }
 
 bool:isAccessGroupsValid() {
@@ -511,13 +498,13 @@ bool:isAccessGroupsValid() {
 }
 
 bool:getAccessGroups() {
-	new GripJSONValue:data = loadCache("access_groups");
-	if (data == Invalid_GripJSONValue) {
+	new EzJSON:data = loadCache("access_groups");
+	if (data == EzInvalid_JSON) {
 		return false;
 	}
 
 	parseAccessGroups(data);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 
 	if (!isAccessGroupsValid()) {
 		return false;
@@ -535,23 +522,23 @@ getCachePath(buffer[], length) {
 	}
 }
 
-GripJSONValue:loadCache(const name[]) {
+EzJSON:loadCache(const name[]) {
 	new path[PLATFORM_MAX_PATH];
 	formatex(path, charsmax(path), "%s/%s.json", CachePath, name);
 
 	if (!file_exists(path)) {
-		return Invalid_GripJSONValue;
+		return EzInvalid_JSON;
 	}
 
 	new error[1];
-	return grip_json_parse_file(path, error, charsmax(error));
+	return ezjson_parse(path, true);
 }
 
-bool:saveCache(const name[], GripJSONValue:data) {
+bool:saveCache(const name[], EzJSON:data) {
 	new path[PLATFORM_MAX_PATH];
 	formatex(path, charsmax(path), "%s/%s.json", CachePath, name);
 
-	if (grip_json_serial_to_file(GripJSONValue:data, path)) {
+	if (ezjson_serial_to_file(EzJSON:data, path)) {
 		return true;
 	}
 

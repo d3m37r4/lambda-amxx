@@ -120,55 +120,53 @@ public CmdAssign(id) {
 	read_args(token, charsmax(token));
 	remove_quotes(token);
 
-	new GripJSONValue:data = grip_json_init_object();
-	grip_json_object_set_number(data, "player_id", PlayersData[id][PlayerID]);
-	grip_json_object_set_string(data, "token", token);
+	new EzJSON:data = ezjson_init_object();
+	ezjson_object_set_number(data, "player_id", PlayersData[id][PlayerID]);
+	ezjson_object_set_string(data, "token", token);
 
 	Lambda_MakeRequest(API_GAME_SERVER_ROUTE_PLAYER_ASSIGN(PlayersData[id][PlayerID]), data, "OnPlayerAssigned", id);
-	// makeRequest("player/assign", data, PluginId, Functions[FnOnAssigned], get_user_userid(id));
-	// grip_destroy_json_value(data);
 
 	return PLUGIN_HANDLED;
 }
 
 public plugin_end() {
-	new GripJSONValue:data = grip_json_init_object();
-	new GripJSONValue:array = grip_json_init_array();
+	new EzJSON:data = ezjson_init_object();
+	new EzJSON:array = ezjson_init_array();
 
-	for (new id = 1, GripJSONValue:object; id <= MaxClients; id++) {
+	for (new id = 1, EzJSON::object; id <= MaxClients; id++) {
 		if (!CheckPlayerStatus(id, StatusLoaded)) {
 			continue;
 		}
 
-		object = grip_json_init_object();
-		grip_json_object_set_number(object, "player_id", PlayersData[id][PlayerID]);
-		grip_json_object_set_number(object, "session_id", PlayersData[id][PlayerSessionID]);
-		grip_json_object_set_string(object, "authid", PlayersData[id][PlayerAuthID]);
-		grip_json_object_set_number(object, "auth_type", PlayersData[id][PlayerAuthType]);
-		grip_json_array_append_value(array, object);
-		grip_destroy_json_value(object);
+		object = ezjson_init_object();
+		ezjson_object_set_number(object, "player_id", PlayersData[id][PlayerID]);
+		ezjson_object_set_number(object, "session_id", PlayersData[id][PlayerSessionID]);
+		ezjson_object_set_string(object, "authid", PlayersData[id][PlayerAuthID]);
+		ezjson_object_set_number(object, "auth_type", PlayersData[id][PlayerAuthType]);
+		ezjson_array_append_value(array, object);
+		ezjson_free(object);
 	}
 
-	grip_json_object_set_value(data, "players", array);
-	grip_destroy_json_value(array);
+	ezjson_object_set_value(data, "players", array);
+	ezjson_free(array);
 
 	Lambda_SaveCache("players", data);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 }
 
-public OnPlayerConnected(const LambdaResponseStatus:status, GripJSONValue:data, const id) {
+public OnPlayerConnected(const LambdaResponseStatus:status, EzJSON:data, const id) {
 	CHECK_RESPONSE_STATUS(status)
 
 	if (id == 0) {
 		return;
 	}
 
-	if (!data || grip_json_get_type(data) != GripJSONObject) {
+	if (!data || ezjson_get_type(data) != EzJSONObject) {
 		return;
 	}
 
-	PlayersData[id][PlayerID] = grip_json_object_get_number(data, "player_id");
-	PlayersData[id][PlayerSessionID] = grip_json_object_get_number(data, "session_id");
+	PlayersData[id][PlayerID] = ezjson_object_get_number(data, "player_id");
+	PlayersData[id][PlayerSessionID] = ezjson_object_get_number(data, "session_id");
 	PlayersData[id][PlayerGameUserID] = get_user_userid(id);
 	PlayersData[id][PlayerStatus] = StatusLoaded;
 
@@ -177,7 +175,7 @@ public OnPlayerConnected(const LambdaResponseStatus:status, GripJSONValue:data, 
 	ExecuteForward(Forwards[FwdPlayerLoaded], FReturn, id, data);
 }
 
-public OnPlayerAssigned(const LambdaResponseStatus:status, GripJSONValue:data, const id) {
+public OnPlayerAssigned(const LambdaResponseStatus:status, EzJSON:data, const id) {
 	CHECK_RESPONSE_STATUS(status)
 	// if (status != LambdaResponseStatusOk) {
 	// 	log_amx("Bad response (status #%d)", status);
@@ -188,12 +186,12 @@ public OnPlayerAssigned(const LambdaResponseStatus:status, GripJSONValue:data, c
 		return;
 	}
 
-	if (!data || grip_json_get_type(data) != GripJSONObject) {
+	if (!data || ezjson_get_type(data) != EzJSONObject) {
 		return;
 	}
 
 	// Индекс аккаунта пользователя на сайте, нужно заменить название PlayerUserID.
-	// Players[id][PlayerUserId] = grip_json_object_get_number(data, "user_id");
+	// Players[id][PlayerUserId] = ezjson_object_get_number(data, "user_id");
 }
 
 makeLoadPlayerRequest(id) {
@@ -241,12 +239,12 @@ makeLoadPlayerRequest(id) {
 	// }
 
 	// if (!CheckPlayerStatus(id, StatusLoaded)) {
-		new GripJSONValue:data = grip_json_init_object();
+		new EzJSON::data = ezjson_init_object();
 
-		grip_json_object_set_string(data, "name", name);
-		grip_json_object_set_string(data, "authid", authid);
-		grip_json_object_set_string(data, "ip", ip);
-		grip_json_object_set_string(data, "auth_type", ClientAuthType[authtype]);
+		ezjson_object_set_string(data, "name", name);
+		ezjson_object_set_string(data, "authid", authid);
+		ezjson_object_set_string(data, "ip", ip);
+		ezjson_object_set_string(data, "auth_type", ClientAuthType[authtype]);
 
 		// log_amx("Player #%d <authtype: %s> <authid: %s> <ip: %s> <name: %s> <id: %d> <session: %d> connecting to server.", get_user_userid(id), ClientAuthType[authtype], authid, ip, name, PlayersData[id][PlayerID], PlayersData[id][PlayerSessionID]);
 		Lambda_MakeRequest(API_GAME_SERVER_ROUTE_PLAYER_CONNECT, data, "OnPlayerConnected", id);
@@ -271,8 +269,8 @@ makeDisconnectPlayerRequest(id) {
 	new name[MAX_NAME_LENGTH];
 	get_user_name(id, name, charsmax(name));
 
-	new GripJSONValue:data = grip_json_init_object();
-	grip_json_object_set_string(data, "name", name);
+	new EzJSON:data = ezjson_json_init_object();
+	ezjson_json_object_set_string(data, "name", name);
 
 	Lambda_MakeRequest(API_GAME_SERVER_ROUTE_PLAYER_DISCONNECT(PlayersData[id][PlayerID]), data);
 	arrayset(PlayersData[id], 0, sizeof PlayersData[]);
@@ -298,33 +296,33 @@ bool:canBeLoadedPlayer(const index) {
 	return bool:(PlayersData[index][PlayerStatus] != StatusLoading && PlayersData[index][PlayerStatus] != StatusLoaded /*&& !is_user_bot(index) && !is_user_hltv(index)*/);
 }
 
-parsePlayersData(const GripJSONValue:data) {
-	new GripJSONValue:tmp = grip_json_object_get_value(data, "players");
-	for (new i, n = grip_json_array_get_count(tmp), id, GripJSONValue:element; i < n; i++) {
+parsePlayersData(const EzJSON:data) {
+	new EzJSON:tmp = ezjson_object_get_value(data, "players");
+	for (new i, n = ezjson_array_get_count(tmp), id, EzJSON:element; i < n; i++) {
 		id = i + 1;
-		element = grip_json_array_get_value(tmp, i);
+		element = ezjson_array_get_value(tmp, i);
 
-		if (grip_json_get_type(element) == GripJSONObject) {
-			PlayersData[id][PlayerID] = grip_json_object_get_number(element, "player_id");
-			PlayersData[id][PlayerSessionID] = grip_json_object_get_number(element, "session_id");
-			grip_json_object_get_string(element, "authid", PlayersData[id][PlayerAuthID], charsmax(PlayersData[][PlayerAuthID]));
-			PlayersData[id][PlayerAuthType] = client_auth_type:grip_json_object_get_number(element, "auth_type");
+		if (ezjson_get_type(data) == EzJSONObject) {
+			PlayersData[id][PlayerID] = ezjson_object_get_number(element, "player_id");
+			PlayersData[id][PlayerSessionID] = ezjson_object_get_number(element, "session_id");
+			ezjson_object_get_string(element, "authid", PlayersData[id][PlayerAuthID], charsmax(PlayersData[][PlayerAuthID]));
+			PlayersData[id][PlayerAuthType] = client_auth_type:ezjson_object_get_number(element, "auth_type");
 		}
 
-		grip_destroy_json_value(element);
+		ezjson_free(element);
 	}
 
-	grip_destroy_json_value(tmp);
+	ezjson_free(tmp);
 }
 
 bool:getPlayersData() {
-	new GripJSONValue:data = Lambda_LoadCache("players");
-	if (data == Invalid_GripJSONValue) {
+	new EzJSON:data = Lambda_LoadCache("players");
+	if (data == EzInvalid_JSON) {
 		return false;
 	}
 
 	parsePlayersData(data);
-	grip_destroy_json_value(data);
+	ezjson_free(data);
 
 	return true;
 }
