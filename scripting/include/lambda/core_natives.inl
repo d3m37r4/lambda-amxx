@@ -1,4 +1,3 @@
-// #include "lambda/misc.inl"
 
 public plugin_natives() {
 	ExecuteForward(CreateMultiForward("__lambda_version_check", ET_IGNORE, FP_STRING, FP_STRING), _, LAMBDA_VERSION_MAJOR, LAMBDA_VERSION_MINOR);
@@ -49,15 +48,15 @@ public NativeMakeRequest(const plugin, const argc) {
 }
 
 public NativeGetServerID() {
-	return ServerData[ServerID];
+	return ServerData[Id];
 }
 
 public NativeGetServerTime() {
-	return ServerData[ServerTime];
+	return ServerData[Time];
 }
 
 public NativeGetServerTimeDiff() {
-	return ServerData[ServerTimeDiff];
+	return ServerData[TimeDiff];
 }
 
 public GripJSONValue:NativeLoadCache(const plugin, const argc) {

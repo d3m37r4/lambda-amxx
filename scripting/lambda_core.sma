@@ -9,15 +9,32 @@ public const LambdaFolder[] = "lambda";
 public const LambdaCacheFolder[] = "lambda_cache";
 public const LambdaCoreCfg[] = "lambda-core.json";
 
+/**
+ * HTTP request header name.
+ */
+stock const ACCESS_TOKEN_HEADER[] = "Lambda-X-Access-Token";
+
 const TaskPingIndex = 100;
 const Float:PingDelay = 60.0;
 
+#define CHECK_NATIVE_ARGS_NUM(%0,%1,%2) \
+	if (%0 < %1) { \
+		log_error(AMX_ERR_NATIVE, "Invalid num of arguments (%d). Expected (%d).", %0, %1); \
+		return %2; \
+	}
+
+#define CHECK_RESPONSE_STATUS(%0) \
+	if (%0 != LambdaResponseStatusOk) { \
+		log_amx("Bad response (status #%d).", %0); \
+		return; \
+	}
+
 /**
- * API routes
+ * Game Server API routes
  */
-#define API_GAME_SERVER_ROUTE_AUTH	"servers/auth"
-#define API_GAME_SERVER_ROUTE_INFO	fmt("servers/%d/info", ServerData[ServerID])
-#define API_GAME_SERVER_ROUTE_PING	fmt("servers/%d/ping", ServerData[ServerID])
+#define API_GAME_SERVER_ROUTE_AUTH	"game-servers/auth"
+#define API_GAME_SERVER_ROUTE_INFO	fmt("game-servers/%d/info", ServerData[Id])
+#define API_GAME_SERVER_ROUTE_PING	fmt("game-servers/%d/ping", ServerData[Id])
 
 enum any:RequestStruct {
 	RequestEndPoint[256],
@@ -45,19 +62,19 @@ new Functions[FUNC];
 new LastNotProcessedRequest;
 new GripRequestOptions:RequestOptions = Empty_GripRequestOptions;
 new Array:RequestStorage = Invalid_Array;
-new RequestUrl[256];
+new EntryPoint[256];
 
-enum any:ServerStruct {
-	ServerID,
-	ServerTime,
-	ServerTimeDiff,
-	ServerIP[MAX_IP_LENGTH],
-	ServerPort,
-	ServerAuthToken[65],
-	ServerAccessToken[65],
-	ServerAccessTokenExpiresIn,
+enum any:ServerDataStruct {
+	Id,
+	Time,
+	TimeDiff,
+	Ip[MAX_IP_LENGTH],
+	Port,
+	AuthToken[65],
+	AccessToken[65],
+	AccessTokenExpiresAt,
 };
-new ServerData[ServerStruct];
+new ServerData[ServerDataStruct];
 
 new CachePath[PLATFORM_MAX_PATH];
 
@@ -71,7 +88,6 @@ new bool:UpdateAccessGroups;
 
 new PluginId;
 
-#include "lambda/misc.inl"
 #include "lambda/core_natives.inl"
 
 public plugin_precache() {
@@ -161,9 +177,9 @@ public OnInfoResponse(const LambdaResponseStatus:status, GripJSONValue:data) {
 		return;
 	}
 
-	// ServerData[ServerID] = grip_json_object_get_number(data, "server_id");
-	ServerData[ServerTime] = grip_json_object_get_number(data, "time");
-	ServerData[ServerTimeDiff] = get_systime(0) - ServerData[ServerTime];
+	// ServerData[Id] = grip_json_object_get_number(data, "game_server_id");
+	ServerData[Time] = grip_json_object_get_number(data, "time");
+	ServerData[TimeDiff] = get_systime(0) - ServerData[Time];
 
 	if (UpdateReasons) {
 		new GripJSONValue:tmp = grip_json_object_get_value(data, "reasons_data");
@@ -207,8 +223,9 @@ public TaskPing() {
 
 makeAuthorizationRequest() {
 	new GripJSONValue:data = grip_json_init_object();
-	grip_json_object_set_number(data, "port", ServerData[ServerPort]);
-	grip_json_object_set_string(data, "auth_token", ServerData[ServerAuthToken]);
+	grip_json_object_set_string(data, "ip", ServerData[Ip]);
+	grip_json_object_set_number(data, "port", ServerData[Port]);
+	grip_json_object_set_string(data, "auth_token", ServerData[AuthToken]);
 	makeRequest(API_GAME_SERVER_ROUTE_AUTH, data, PluginId, Functions[FuncOnAuthorization]);
 }
 
@@ -237,7 +254,7 @@ makeRequest(const endpoint[], GripJSONValue:data = Invalid_GripJSONValue, const 
 	}
 
 	if (funcID != Functions[FuncOnAuthorization]) {
-		grip_options_add_header(RequestOptions, "X-Access-Token", ServerData[ServerAccessToken]);
+		grip_options_add_header(RequestOptions, ACCESS_TOKEN_HEADER, ServerData[AccessToken]);
 	}
 
 	new request[RequestStruct];
@@ -254,7 +271,7 @@ makeRequest(const endpoint[], GripJSONValue:data = Invalid_GripJSONValue, const 
 	new id = ArrayPushArray(RequestStorage, request, sizeof request);
 	new GripBody:body = data != Invalid_GripJSONValue ? grip_body_from_json(data) : Empty_GripBody;
 
-	grip_request(fmt("%s/api/%s", RequestUrl, endpoint), body, GripRequestTypePost, "RequestHandler", RequestOptions, id);
+	grip_request(fmt("%s/api/%s", EntryPoint, endpoint), body, GripRequestTypePost, "RequestHandler", RequestOptions, id);
 
 	if (body != Empty_GripBody) {
 		grip_destroy_body(body);
@@ -387,15 +404,19 @@ bool:loadConfig() {
 		return false;
 	}
 
-	grip_json_object_get_string(cfg, "request-url", RequestUrl, charsmax(RequestUrl));
-	grip_json_object_get_string(cfg, "server-ip", ServerData[ServerIP], charsmax(ServerData[ServerIP]));
-	grip_json_object_get_string(cfg, "server-auth-token", ServerData[ServerAuthToken], charsmax(ServerData[ServerAuthToken]));
-	ServerData[ServerPort] = grip_json_object_get_number(cfg, "server-port");
+	grip_json_object_get_string(cfg, "entry-point", EntryPoint, charsmax(EntryPoint));
 
-	log_amx("Loading configuration. Request URL is '%s'", RequestUrl);
-	grip_destroy_json_value(cfg);
+	new GripJSONValue:tmp = grip_json_object_get_value(cfg, "server-data");
+	grip_json_object_get_string(tmp, "ip", ServerData[Ip], charsmax(ServerData[Ip]));
+	grip_json_object_get_string(tmp, "auth-token", ServerData[AuthToken], charsmax(ServerData[AuthToken]));
+	ServerData[Port] = grip_json_object_get_number(tmp, "port");
 
 	ExecuteForward(Forwards[FwdConfigExecuted]);
+	log_amx("Loading configuration. Entry point for requests: %s", EntryPoint);
+
+	grip_destroy_json_value(tmp);
+	grip_destroy_json_value(cfg);
+
 	return true;
 }
 
@@ -404,13 +425,13 @@ bool:isRequestIndexValid(const index) {
 }
 
 parseAccessToken(const GripJSONValue:data) {
-	grip_json_object_get_string(data, "token", ServerData[ServerAccessToken], charsmax(ServerData[ServerAccessToken]));
-	ServerData[ServerAccessTokenExpiresIn] = grip_json_object_get_number(data, "expires_in");
-	ServerData[ServerID] = grip_json_object_get_number(data, "server_id");
+	grip_json_object_get_string(data, "token", ServerData[AccessToken], charsmax(ServerData[AccessToken]));
+	ServerData[AccessTokenExpiresAt] = grip_json_object_get_number(data, "expires_at");
+	ServerData[Id] = grip_json_object_get_number(data, "game_server_id");
 }
 
 bool:isAccessTokenValid() {
-	if (ServerData[ServerAccessToken][0] == EOS || ServerData[ServerAccessTokenExpiresIn] < get_systime()) {
+	if (ServerData[AccessToken][0] == EOS || ServerData[AccessTokenExpiresAt] < get_systime()) {
 		return false;
 	}
 
